@@ -1,0 +1,158 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Jan  8 16:27:10 2021
+
+@author: Huan Wang
+"""
+
+'''实现功能
+    用拉普拉斯平滑估计概率，取lambda为1
+    问题：数据集里可以有SML吗？'''
+    
+
+import numpy as np
+
+data = {"version": '1'}
+    ##  data
+    #第j行代表X第j个特征对应的可能取值
+data["x_spaces"]=np.array([
+    [1, 2, 3],
+    [1, 2, 3],
+    ])
+    
+    
+    #类标记Y的取值
+data["y_space"]=np.array([
+    [1, -1],
+    ])    
+
+    ##  data
+    #训练数据，分别对应1-15个训练样本
+    #特征S，M，L分别标注为1,2,3,###看老师的程序如何处理
+data["Train"]= np.array([
+    [1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3 ],
+    [1, 2, 2, 1, 1, 1, 2, 2, 3, 3, 3, 2, 2, 3, 3],
+    [-1, -1, 1, 1, -1, -1, -1, 1, 1, 1, 1, 1, 1, 1, -1],
+    ])
+    
+data["Test"]=np.array([
+    [2],
+    [1],
+    ])  
+
+
+    
+def Naive_Bayes():
+    global n,Sj,K
+    #数据的导入，数据集包括，A1集合和A2集合，以及Y的类标记集合+训练数据
+    #训练数据维度(n+1)*训练样本个数，其中n为x的总特征数
+    #测试数据维度(n+1)*测试样本个数，其中n为x的总特征数
+    #采用贝叶斯估计，令λ = 1,按照拉普拉斯平滑估计概率
+    A = np.array(data["x_spaces"]).T 
+    Y = np.array(data["y_space"]).T
+    n = len(A.T)
+    Sj = len(A)
+    K = len(Y) 
+    λ = 1 
+    train = np.array(data["Train"])
+    train_num = len(data["Train"].T)
+    #准备K*1矩阵Py，存放先验概率，K为类标记y的总数
+    #准备K*(S1+...+Sj)的矩阵Pxy,存放条件概率，Sj为第j个特征可能取值的总数
+
+    Py = np.zeros((K, 1)) 
+    Pxy = np.zeros((K, Sj*n))
+
+    
+    def Statistics():
+        
+        #功能，统计先验概率和条件概率，记得加上拉普拉斯平滑
+        #功能2，输出“数据已训练完毕”
+        count = np.zeros((K,1))
+        sta = 0
+        for i in range(K):
+            for j in range(train_num):
+                if train[2,j] == Y[i,0]:
+                    count[i,0] += 1
+            Py[i,0] =  (count[i,0] + λ) /(train_num + K* λ)
+            sta += count[i,0]  
+        assert(sta == train_num),"The total Y numbers equal to the train_num "
+        print("-----------先验概率-------------")
+        print(Py)
+        print()
+        
+        count2 = np.zeros((K, Sj* n))
+        for i in range(K): #遍历y向量
+            for k in range(train_num): #遍历训练样本的列数
+                if train[2,k] == Y[i,0]: #如果训练样本的输出值与Y[i]相同
+                     for j in range(n): #遍历特征集A的列，即各个特征
+                         for l in range(Sj): #遍历特征集A的行，即第j个特征的各可能取值
+                                if train[j,k] == A[l,j]: #找到对应特征
+                                    column = j* Sj + l #计算存放位置，第j个特征的第l个可能取值
+                                    count2[i,column] += 1  
+                                    continue #一个样本的特征j只可能对应一个输入值，找到即继续下一循环
+            for m in range(Sj* n):
+                Pxy[i,m] = (count2[i,m]+ λ)/ (count[i,0] + Sj* λ)
+
+        print("------------条件概率------------")
+        print(Pxy)
+        print()
+        print('训练完毕')
+        print("-------------------------------")
+                         
+    def test():
+        #功能，计算各后验概率的取值，每次计算出的值与前值进行对比，存放较大值max
+        '''遍历Py向量的先验概率，遍历Pxy中对应测试数据特征值的条件概率，
+            得到K个后验概率'''
+        print('开始测试')
+        print("-------------------------------")
+        test = np.array(data["Test"])
+        test_cha = len(data["Test"])
+        test_num = len(data["Test"].T)
+        assert(test_cha == n)
+        
+        sign = np.zeros((n,test_num))
+        for i in range(test_num):
+            for j in range(n):
+                for k in range(Sj):
+                    if test[j,i] == A[k,j]:
+                        sign[j,i] = int(k) #放入第i个测试数据的特征j对应的特征取值序号k,注意格式为整型
+                        continue
+                    
+        #准备K*test_num矩阵PY，存放后验概率
+        #准备变量max，存放较大的PY(i)
+        #功能2，return后验概率最大的类（即期望风险最小化的类）
+        y = np.zeros((K,test_num)) 
+        max_y = np.zeros((1,test_num))
+        max_y_num = np.zeros((1,test_num))
+        for i in range(test_num): #先遍历列
+            for j in range(K):
+                y[j,i] = 1* Py[j,0] #将函数值乘以对应的先验概率
+                for k in range(n): #在总特征数n的范围内遍历
+                    al = sign[k,i] #获取第i测试数据的特征k对应的特征取值序号
+                    column = int(Sj*k + al) #设计的先验概率矩阵为K, Sj* n；此处计算列数
+                    y[j,i] *= Pxy[j,column] #将函数值乘以第i个测试数据的特征j对应的条件概率
+                if y[j,i] > max_y[0,i] :
+                    max_y[0,i] = y[j,i]
+                    max_y_num[0,i] = int(j)
+        
+        return(max_y,max_y_num)
+        
+        
+    Statistics()
+    max_y,max_y_num = test()
+    test_num = len(data["Test"].T)
+    def _print_():
+        pre_Y = []
+        for i in range(test_num):
+            num = int(max_y_num[0,i])
+            pre_Y.append(Y[num,0]) 
+        print("--------Best Predictions-------")
+        print("     Y            Probability")
+        for i in range(test_num):
+            print("%6d         %10.4f"%(pre_Y[i],max_y[i]))
+        print("-------------------------------")
+        print()
+     
+    _print_()
+        
+Naive_Bayes()      
