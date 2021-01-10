@@ -1,0 +1,71 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Jan  7 11:49:29 2021
+
+@author: Huan Wang
+"""
+
+
+import numpy as np
+from Perceptron_Dataset import Perceptron_Dataset
+
+def case(name):
+    if name =='Perceptron_Dataset':
+        return Perceptron_Dataset()
+
+def Perceptron(name):
+    global b
+    data = case(name)
+    x = np.array(data["sample"]).T 
+    y = np.array(data["output"])   
+    n = len(data["sample"]) #取x的元素数量
+    alpha = np.zeros((n,1))
+    b = 0
+    '''准备Gram矩阵备用'''
+    G = np.zeros((n,n))
+    for i in range(n):
+        for j in range(n):
+            G[i,j] = np.dot(x[:,i].T, x[:,j])
+    print("-----------Gram矩阵------------")
+    print(G)
+    print()
+    
+    
+    '''对偶型误分条件函数
+        输入具体数据序号，输出对应数据的误分条件值'''
+    def Condition(i):
+        global b
+        s = 0
+        for j in range(n):
+            s += alpha[j,0] * y[j,0] * G[j,i]
+        return y[i,0] * (s + b)
+    
+    '''优化函数
+        优化顺序序号从小到大，同一参数需通过全部样本检验循环退出'''
+    def Optimization():
+        global b
+        while True:
+            sign = 0
+            it = 0
+            for i in range(n):
+                if Condition(i) <= 0:
+                    alpha[i,0] += 1
+                    b += y[i,0]
+                    it += 1
+                else:
+                    sign += 1    
+            if sign == 3:
+                break
+            
+    Optimization()
+    
+    '''超平面参数计算'''
+    w = np.zeros((len(x),1))              
+    for i in range(len(x)):
+        for j in range(n):
+            w[i,0] += alpha[j,0] * y[j,0] * x[i,j]
+        
+    print("-----------模型参数-------------")
+    print("The parameters are",w,b)
+
+Perceptron("Perceptron_Dataset")
