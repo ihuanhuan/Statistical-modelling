@@ -1,0 +1,129 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Jan  7 11:49:29 2021
+
+@author: Huan Wang
+"""
+
+'''
+目标
+基于单层感知机模型，对一组样本，利用随机梯度下降法进行优化
+输出模型参数
+
+'''
+
+
+import numpy as np
+import time
+import random
+
+def Perceptron():
+    global b
+    
+    #初始化
+    x = np.array(data["x_train"]).T 
+    y = np.array(data["y_train"])   
+    n = len(x.T) #取样本数
+    alpha = np.zeros((n,1))
+    b = 0
+    
+    #准备Gram矩阵备用
+    G = np.zeros((n,n))
+    for i in range(n):
+        for j in range(n):
+            G[i,j] = np.dot(x[:,i].T, x[:,j])
+                
+    '''误分条件函数
+        输入具体样本序号，输出函数值，小于零为误分类'''
+    def condition(i):
+        global b
+        #初始化sum
+        s = 0
+        
+        #得到sum
+        for j in range(n):
+            s += alpha[j,0] * y[j,0] * G[j,i]
+            
+        #返回误分类判断值
+        return y[i,0] * (s + b)
+    
+    '''优化函数'''
+    def optimization():
+        global b
+
+        '''
+        随机梯度下降法
+        
+        参数:
+            @ η: 学习率，默认值 = 1
+            @ it: 优化算法最大迭代次数，默认值 = 2000
+        '''
+        #初始化
+        η = 1
+        it = 2000
+        
+        #迭代
+        for _ in range(it):
+            
+            #初始化
+            uncorr_sample = []  
+            
+            #获取所有误分类样本序号
+            for i in range(n):
+                if condition(i) <= 0:
+                    uncorr_sample.append(i)
+                    
+            #优化参数
+            if uncorr_sample:        
+                i = random.choice(uncorr_sample)
+                alpha[i,0] += η
+                b += η*y[i,0]
+                it += 1
+                print("The",it,"iteration：random number is",i,",alpha is",alpha,"b is",b)
+            
+            #退出条件，误分类list为空
+            else:
+                print("Total iteration number is",it)
+                break
+              
+    
+    '''参数计算'''
+    #初始化
+    ω = np.zeros((len(x),1)) 
+    
+    #执行优化函数
+    optimization()
+    
+    #计算模型参数     
+    for i in range(len(x)):
+        for j in range(n):
+            ω[i,0] += alpha[j,0] * y[j,0] * x[i,j]
+    
+    #返回模型参数
+    return ω,b
+        
+       
+data = {"Book_example": 'P45'}
+##  data
+#x(1) x(2)
+data["x_train"]= np.array([
+    [3, 3],
+    [4, 3],
+    [1, 1],
+])
+
+##  data
+#y
+data["y_train"]= np.array([
+    [1],
+    [1],
+    [-1],
+])
+
+start = time.time()
+ω,b = Perceptron()
+end = time.time()
+print("-----------模型参数-------------")
+print("The parameters are",ω,b)
+print()
+print("The total time is:{}".format(end-start))
