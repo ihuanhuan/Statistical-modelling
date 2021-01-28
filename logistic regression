@@ -1,0 +1,158 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Jan 15 19:32:23 2021
+
+@author: Huan Wang
+"""
+
+'''
+目标
+利用二项逻辑回归模型，对一组小样本，通过梯度下降法进行优化
+
+'''
+
+
+import numpy as np
+import math
+import time
+
+def regression():
+    #实现功能：读取训练数据，N为样本个数，n每个样本对应的特征数，建立对数似然函数
+    #调用梯度函数，对参数进行优化
+    #输出参数ω
+    global n,N,ω_n
+    x = np.array(data["x_train"]).T
+    y =  np.array(data["y_train"]).T
+    N = len(x.T)
+    N_y = len(y)
+    n = len(x) #n为总特征数
+                  
+    def grad_descent(x,y):
+        global n,N,ω_n
+        #计算梯度，输入初值、学习步长，优化参数
+        #返回参数ω
+        '''
+       梯度下降法
+        
+        参数:
+            @ x: 在每个样本数据后展开元素“1”
+            @ ω0: 由超平面系数ω0与b0组成
+            @ epsilon: 更新终止条件，默认值 = 1e-6
+            @ it: 优化算法最大迭代次数，默认值 = 2000
+            @ η: 学习率，默认值 = 0.1
+            '''
+        #模型初始化
+        ones = np.ones((1,N))
+        x = np.concatenate((x,ones))
+        b0 = np.zeros((1,1))
+        ω0 = np.zeros((n,1))
+        ω0 = np.concatenate((ω0,b0))
+        eps = 1e-3
+        it = 5000
+        η = 0.1
+
+        ω_n = ω0 #赋初值给变量
+        
+        #迭代
+        for i in range(it):
+            # 计算牛顿法方向
+            g = grad(ω_n,x,y)
+            d = -g
+            step = η
+            s = step * d
+            
+            # 更新
+            ω_n = ω_n + s
+            
+            # 终止条件
+            print(np.linalg.norm(s))
+            if np.linalg.norm(s) < eps:
+                break
+            
+        #返回训练模型参数    
+        return ω_n
+                
+    def grad(ω,x,y):
+        global n,N
+        
+        #初始化
+        grad = np.zeros((n+1,1))
+        exp_ωxi = float()
+        
+        #迭代
+        for i in range(N):
+            xi = x[:,i].reshape(-1,1) #x[:,i]，reshape功能转为二维
+            yi = y[i,0]
+            exp_ωxi = math.exp(ω.T@xi)
+            grad += - yi*xi + 1/(1+exp_ωxi)*exp_ωxi*xi 
+        
+        #返回当前参数下梯度方向
+        print("grad is",grad)
+        return grad
+    
+    return(grad_descent(x,y))      
+    
+def prediction():
+    #输入模型参数，读取待预测数据特征
+    #计算P（Y=1|X)，判断是否大于0.5
+    #输出分类结果
+    
+    #初始化
+    X = np.array(data["X_predict"]).T
+    pre_num = len(X.T)
+    ones = np.ones((1,pre_num))
+    X = np.concatenate((X,ones))
+    
+    pre_Y = []
+    pre_Y_prob = []
+    ω = regression()
+    print(ω)
+    
+    #预测
+    for i in range(pre_num):
+        ωx = ω.T @ X[:,i].reshape(-1,1)
+        P_Y_1 = math.exp(ωx) / (1+math.exp(ωx))
+    if P_Y_1 >= 0.5:
+        pre_Y.append(1)
+        pre_Y_prob.append(P_Y_1)
+    else:
+        pre_Y.append(0)
+        pre_Y_prob.append(1-P_Y_1)
+        
+    #返回预测结果和对应概率
+    return pre_Y,pre_Y_prob
+        
+
+data = {"homework_case": ""}
+
+data["x_train"]= np.array([
+    [3, 3, 3],
+    [4, 3, 2],
+    [2, 1, 2],
+    [1, 1, 1],
+    [-1, 0, 1],
+    [2, -2, 1],
+    ])
+
+data["y_train"]= np.array([
+    [1, 1, 1, 0, 0, 0],
+    ])
+
+data["X_predict"]= np.array([
+    [1, 2, -2]
+    ])
+
+
+
+start = time.time()
+pre_Y,pre_Y_prob = prediction()
+end = time.time()
+pre_num = len(pre_Y)
+
+print("--------Best Predictions-------")
+print("     Y            Probability")
+for i in range(pre_num):
+    print("%6d         %10.8f"%(pre_Y[i],pre_Y_prob[i]))
+print("-------------------------------")
+print()
+print("The total time is:{}".format(end-start))
