@@ -1,0 +1,12 @@
+{
+    "jupyter.kernels.filter": [
+        {
+            "path": "c:\\Users\\Huan Wang\\AppData\\Local\\Programs\\Python\\Python38\\python.exe",
+            "type": "pythonEnvironment"
+        },
+        {
+            "path": "c:\\Users\\Huan Wang\\anaconda3\\envs\\pythonProject\\python.exe",
+            "type": "pythonEnvironment"
+        }
+    ]
+}
