@@ -1,0 +1,219 @@
+class TreeNode:
+    '''
+    @ feature: list
+    @ best_feat: string
+    @ best_value: int
+    '''
+    def __init__(self, features, depth=0) -> None:
+        # 节点信息
+        self.depth = depth
+        self.features = features
+
+        # 决策信息
+        self.left = None
+        self.right = None
+        self.best_feat = None # 每个节点的分裂特征
+        self.best_value = None # 每个节点的分裂值
+    
+    def insertLeft(self, best_feat, best_value):
+        n = self.depth + 1
+        features = self.features.copy()
+        features.remove(best_feat)
+        node = TreeNode(features, depth=n)
+        self.left = node
+        return
+
+    def insertRight(self, best_feat, best_value):
+        n = self.depth + 1
+        features = self.features.copy()
+        features.remove(best_feat)
+        node = TreeNode(features, depth=n)
+        self.right = node
+        return
+
+
+# 训练模块
+class TrainMethod:
+    '''
+    @ root: TreeNode
+    @ classes: list
+    @ impurity_t = 'entropy', 'gini', default value is entropy
+    @ x：data, ndarray, (n,n)
+    @ y: labels, ndarray, (n,)
+    '''
+    def __init__(self, root, classes, impurity_t='entropy'):
+        # 训练初始化信息
+        self.root = root
+        self.classes = classes # 0，1 二分类
+        self.impurity_t = impurity_t
+
+        # 分裂边界条件
+        self.max_depth = 10
+        self.min_samples_split = 10
+        
+    def fit(self, x, y):
+        # assert len(self.features) == len(feature[0]) # 输入数据的特征数目应该和模型定义时的特征数目相同
+        min = self.min_samples_split
+        dep = self.max_depth
+        
+        print("The Tree is generating")
+        print("Please wait...")
+        def expand_node(x, y, root):
+            # 终止分裂条件
+            # 第一种，有完全相同的输出类型，样本已经本完美分类
+            dict_y = Counter(y) 
+            if len(dict_y)== 1:
+                root.best_value = self.give_prediction(dict_y)
+                return
+            
+            # 第二种，预剪枝，树节点的分类边界    
+            if len(x) <= min or root.depth >= dep: 
+                if len(x) == 0: # 节点数据量为零
+                    root.best_value = np.random.randint(2) # 随机一个输出
+                else:
+                    root.best_value = self.give_prediction(dict_y)
+                return
+
+            # 否则，进入递归分裂
+            lx, rx, ly, ry = self.split_dataset(x, y, root)
+            expand_node(lx, ly, root.left)
+            expand_node(rx, ry, root.right)
+        
+        expand_node(x, y, self.root)
+        print("Training ended")
+        return self.root
+    
+    # 输出预测的叶子节点分类信息
+    def give_prediction(self, dict_y): 
+        max_k = -np.inf
+        max_v = 0
+        for k,v in dict_y.items():
+            if v > max_v:
+                max_k = k
+                max_v = v
+        return max_k
+
+    # 满足分裂条件时，分割data并分裂树节点
+    def split_dataset(self, x, y, root):
+        # 第一步，确定每个特征的分割点，并记录每个特征的最大信息增益
+        n = len(root.features)
+
+        # 初始化
+        best_value_list = [0 for i in range(n)] # 备用，记录每个特征的最优分割点
+        max_gain = [-np.inf for i in range(n)] # 备用，记录每个特征提供的信息增益
+
+        # 遍历各特征列
+        for feat in range(n): 
+            # 取出一列data
+            data = x[:, feat].flatten()
+            if max(abs(data)) == 1: feat_v = 0 + 1 # 取分割点为-1，考虑到range()右侧开区间，+1
+            else: feat_v = n_qcut - 1 + 1 # 考虑到range()右侧开区间，+1
+            for v in range(feat_v):
+                maskj_x_less = ma.masked_less_equal(data, v)
+                maskj_x_greater = ma.masked_greater(data, v) # +后期，待细化
+                ly = y[maskj_x_less.mask]
+                ry = y[maskj_x_greater.mask]
+                gain = self.gain(y, ly, ry)
+                if gain > max_gain[feat]:
+                    max_gain[feat] = gain
+                    best_value_list[feat] = v
+
+        # 假设各特征的最优分割点和信息增益已获得
+        # 获取最大信息增益feature
+        index = max_gain.index(max(max_gain))
+        best_feat = root.features[index]
+        best_value = best_value_list[index]
+
+        # 节点信息增加
+        root.best_feat = best_feat
+        root.best_value = best_value
+        root.insertLeft(best_feat, best_value)
+        root.insertRight(best_feat, best_value)
+
+        # 数据集分割为左右子集
+        # index = max_gain.index(max(max_gain))
+        best_j = index # 最佳特征的序号
+        value = best_value
+        lx, ly, rx, ry = [], [], [], []
+        for i in range(len(x)): # +后期，可以简化吗
+            data = np.hstack((x[i, :best_j],x[i, best_j+1:]))
+            if x[i][best_j] <= value:
+                lx.append(list(data))
+                ly.append(y[i])
+            else:
+                rx.append(list(data))
+                ry.append(y[i]) 
+        lx, rx, ly, ry = np.array(lx), np.array(rx), np.array(ly), np.array(ry)
+        return lx, rx, ly, ry
+    
+    def gain(self, label, llabel, rlabel):
+        n, ln, rn = len(label), len(llabel), len(rlabel)
+        # 特殊情况
+        if ln == 0 or rn == 0: return 0
+
+        # 求解信息增益
+        impur_y = self.impurity(label)
+        impur_ly = self.impurity(llabel)
+        impur_ry = self.impurity(rlabel)
+        gain = impur_y - (ln/n * impur_ly
+                             + rn/n * impur_ry)
+        return gain
+    
+    def impurity(self, label):
+        c = Counter(label)
+        sum_ = len(label)
+        k = len(self.classes)
+        prob_w = [0 for i in range(k)] 
+
+        # 初始化
+        entropy = 0
+        gini = 1
+
+        # 迭代求和
+        for i in range(k):
+            prob_w[i] = round(c[i]/sum_ ,2)
+            if prob_w[i] == 0: continue # 功能相当于定义0log0 == 0
+            if self.impurity_t == 'entropy':
+                entropy += -(prob_w[i]*np.log2(prob_w[i]))
+            else:
+                gini += - (prob_w[i]**2)
+        
+        if self.impurity_t == 'entropy': return entropy
+        else: return gini
+
+
+# 预测模块
+class Predict:
+    '''
+    预测
+    输入pre_x可以是一个一维numpy数组也可以是一个二维numpy数组
+    如果是一维numpy（m）数组则是一个样本，包含m个特征，返回一个类别值
+    如果是二维numpy（n*m）数组则表示n个样本，每个样本包含m个特征，返回一个numpy一维数组
+    '''
+    def predict(self, pre_x):
+        assert len(pre_x.shape) == 1 or len(pre_x.shape) == 2 # 只能是1维或2维
+        print("Prediction started")
+        print("Please wait...")
+
+        if len(pre_x.shape) == 1: 
+            return self.traverse_node(pre_x) 
+        return np.array([self.traverse_node(i) for i in pre_x])
+    
+    def traverse_node(self, pre_x):
+        global root
+        arr = []
+        def traverse(pre_x, root):
+            # 叶子节点，直接输出prediction
+            if not root.left and not root.right: # 说明是一个叶子节点
+                arr.append(root.best_value)
+                return
+            
+            # 决策节点，判断继续左子树还是右子树
+            index = root.features.index(root.best_feat)
+            if pre_x[index] <= root.best_value:
+                traverse(pre_x, root.left)
+            if pre_x[index] > root.best_value:
+                traverse(pre_x, root.right)
+        
+        traverse(pre_x, root)
+        return arr
